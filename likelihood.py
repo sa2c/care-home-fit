@@ -56,7 +56,7 @@ def carehome_intensity_null(covariates, cases, fit_params, **kwargs):
      - covariates: a (1, N_CARE_HOMES) array of care home size bands
      - cases: an (N_DATES, N_CARE_HOMES) array of integers representing
               the number of cases at a given care home on a given day
-    Fit parameters:
+    fit_parameters: a dict containing elements:
      - baseline_intensities: a 1d array of baseline intensities as a function
                              of care home size band
     '''
@@ -72,14 +72,20 @@ def single_excitation(triggers, shape, scale):
     and triggers is a 2-d array indexed as (t, i)'''
 
     n_dates, _ = triggers.shape
-    date_range = arange(n_dates)[:, newaxis]
+    date_delta_range = arange(1, n_dates)[:, newaxis]
 
-    full_f_c = gamma.pdf(n_dates - date_range,
-                         a=shape, scale=scale)
+    # Generate an array of all values from the distribution to be used
+    # given the range of date differences to be considered
+    # This avoids recalculating on each loop iteration
+    full_f_c = gamma.pdf(date_delta_range, a=shape, scale=scale)
     output = zeros_like(triggers, dtype='float64')
 
-    for s in range(n_dates):
-        output[s:] += full_f_c[s:] * triggers[s]
+    for term in range(1, n_dates):
+        # On each loop iteration, consider terms arising from one date
+        # This is the reverse of the form of the summation expressed
+        # analytically, but maps more nicely onto the data structures
+        # and how numpy likes to deal with them
+        output[term:] += full_f_c[:n_dates - term] * triggers[term - 1]
     return output
 
 
@@ -142,7 +148,7 @@ def likelihood(intensity, cases):
     '''
     Sum the following over all care homes i: data on days t=1, 2, ..., T
     with cases observed on days t_{i;j}, then use log-likelihood
-        \sum_j \ln \lambda_i (t_{i;j}) - \sum_{t=1}^T \lambda_i (t)
+        \\sum_j \\ln \\lambda_i (t_{i;j}) - \\sum_{t=1}^T \\lambda_i (t)
     '''
 
     return npsum(log(intensity[cases > 0])) - npsum(intensity)
