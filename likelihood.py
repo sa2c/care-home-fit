@@ -166,7 +166,10 @@ def calculate_likelihood_from_files(cases_file, covariates_file,
     else:
         discharges = None
 
-    if kwargs['fit_params']['r_c'] is None:
+    if (
+            not kwargs['fit_params'].get('r_c')
+            and not kwargs['fit_params'].get('r_h')
+    ):
         return likelihood(
             carehome_intensity_null(covariates=covariates,
                                     cases=cases,
