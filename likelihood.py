@@ -126,9 +126,9 @@ def carehome_intensity(fit_params, covariates, cases, dist_params,
         dist_params['self_excitation_scale']
     )
 
-    if fit_params['r_h'] is not None:
+    if fit_params.get('r_h') is not None:
         assert discharges is not None
-        output += fit_params['r_c'] * single_excitation(
+        output += fit_params['r_h'] * single_excitation(
             discharges,
             dist_params['discharge_excitation_shape'],
             dist_params['discharge_excitation_scale']
