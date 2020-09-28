@@ -154,8 +154,12 @@ def likelihood(intensity, cases):
     return npsum(log(intensity[cases > 0])) - npsum(intensity)
 
 
-def calculate_likelihood_from_files(cases_file, covariates_file,
-                                    discharges_file=None, **kwargs):
+def safely_read_cases_covariates_discharges(
+        cases_file, covariates_file, discharges_file=None
+):
+    '''Read in cases, covariates, and optionally discharges from specified
+    CSV files and check their consistency before returning them.'''
+
     care_home_ids, cases = read_and_tidy_data(cases_file)
     covariate_ch_ids, covariates = read_and_tidy_data(covariates_file)
     assert equal(care_home_ids, covariate_ch_ids).all()
@@ -166,6 +170,17 @@ def calculate_likelihood_from_files(cases_file, covariates_file,
     else:
         discharges = None
 
+    return care_home_ids, cases, covariates, discharges
+
+
+def calculate_likelihood_from_files(cases_file, covariates_file,
+                                    discharges_file=None, **kwargs):
+    '''Does the end-to-end calculation of the likelihood from files for cases,
+    covariates, and discharges stored on disk.'''
+
+    _, cases, covariates, discharges = safely_read_cases_covariates_discharges(
+        cases_file, covariates_file, discharges_file
+    )
     if (
             not kwargs['fit_params'].get('r_c')
             and not kwargs['fit_params'].get('r_h')
@@ -186,6 +201,54 @@ def calculate_likelihood_from_files(cases_file, covariates_file,
             ),
             cases
         )
+
+
+def get_fittable_likelihood(cases_file, covariates_file, discharges_file=None):
+    '''Closure that returns a function wrapping likelihood and intensity such
+    that likelihood can be maximised by scipy.optimize.'''
+
+    _, cases, covariates, discharges = safely_read_cases_covariates_discharges(
+        cases_file, covariates_file, discharges_file
+    )
+
+    def fittable_likelihood(fit_params, dist_params):
+        '''Calculate the likelihood of the enclosed data for the specified
+        set of fit and distribution parameters:
+         - fit_params: a 1d-array with elements:
+           * 0 is the case excitation coefficient r_c
+           * 1 is the discharge excitation coefficient r_h
+           * 2: are the baseline intensities
+         - dist_parameters: a dict with elements self_excitation_shape,
+           self_excitation_scale, discharge_excitation_shape,
+           discharge_excitation_scale parametrising the relevant
+           gamma pdfs.'''
+
+        r_c, r_h = fit_params[:2]
+        baseline_intensities = fit_params[2:]
+        fit_params_dict = {
+            'baseline_intensities': baseline_intensities,
+            'r_c': r_c,
+            'r_h': r_h
+        }
+        if (r_c == 0) and (r_h == 0):
+            intensity = carehome_intensity_null(
+                covariates=covariates,
+                cases=cases,
+                fit_params=fit_params_dict,
+                dist_params=dist_params
+            )
+        else:
+            intensity = carehome_intensity(
+                covariates=covariates,
+                cases=cases,
+                discharges=discharges,
+                fit_params=fit_params_dict,
+                dist_params=dist_params
+            )
+
+        return likelihood(intensity, cases)
+
+    return fittable_likelihood
 
 
 def main():

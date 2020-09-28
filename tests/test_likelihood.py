@@ -201,3 +201,26 @@ def test_calculate_likelihood_from_files_missing_discharges():
             SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
             fit_params=SMALL_FIT_PARAMS, dist_params=SIMPLE_DIST_PARAMS
         )
+
+
+@pytest.mark.parametrize(
+    'r_c, r_h, expect',
+    [(0, 0, -11.5342641),
+     (0.5, 1.5, -15.6314631),
+     (0.5, 0, -13.9346821),
+     (0, 1.5, -12.6650361)]
+)
+def test_fittable_likelihood(r_c, r_h, expect):
+    '''Test that the closure to give a version of intensity and likelihood that
+    can be fitted by scipy works correctly.'''
+
+    fittable_likelihood = likelihood.get_fittable_likelihood(
+        SMALL_CASES_FILE, SMALL_COVARIATES_FILE, SMALL_CASES_FILE
+    )
+    fit_params = np.asarray(
+        [r_c, r_h, *SMALL_FIT_PARAMS['baseline_intensities']]
+    )
+    assert_almost_equal(
+        fittable_likelihood(fit_params, SIMPLE_DIST_PARAMS),
+        expect
+    )
