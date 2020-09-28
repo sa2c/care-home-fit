@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+'''Tests for the likelihood.py module'''
+
+
 import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_almost_equal
@@ -12,11 +15,11 @@ SMALL_FIT_PARAMS = {
     'r_c': 0.5
 }
 
-SMALL_DIST_PARAMS = {
-    'self_excitation_shape': 2.6,
-    'self_excitation_scale': 2.5,
-    'discharge_excitation_shape': 2.6,
-    'discharge_excitation_scale': 2.5
+SIMPLE_DIST_PARAMS = {
+    'self_excitation_shape': 2,
+    'self_excitation_scale': 1,
+    'discharge_excitation_shape': 3,
+    'discharge_excitation_scale': 2
 }
 
 
@@ -44,11 +47,13 @@ def test_read_and_tidy_data():
 
 @pytest.fixture
 def small_cases():
+    '''Get a small data file that could be cases or discharges.'''
     return likelihood.read_and_tidy_data('tests/fixtures/small.csv')
 
 
 @pytest.fixture
 def small_covariates():
+    '''Get a small data file containing covariates.'''
     return likelihood.read_and_tidy_data('tests/fixtures/small_covariates.csv')
 
 
@@ -75,6 +80,45 @@ def test_single_excitation(small_cases, small_covariates):
     assert_almost_equal(
         excitation,
         [[0, 0, 0], [1.472, 0.368, 2.207], [2.554, 0.271, 2.728]],
+        decimal=3
+    )
+
+
+def test_carehome_intensity_no_discharges(small_cases, small_covariates):
+    '''Test that the behaviour of carehome_intensity in the case where
+    discharges are not considered.'''
+    _, cases = small_cases
+    _, covariates = small_covariates
+    fit_params_no_rh = {**SMALL_FIT_PARAMS, 'r_h': None}
+    intensity = likelihood.carehome_intensity(
+        covariates=covariates,
+        cases=cases,
+        fit_params=fit_params_no_rh,
+        dist_params=SIMPLE_DIST_PARAMS
+    )
+    assert_almost_equal(
+        intensity,
+        [[1, 2, 2], [1.736, 2.184, 3.104], [2.277, 2.135, 3.364]],
+        decimal=3
+    )
+
+
+def test_carehome_intensity_with_discharges(small_cases, small_covariates):
+    '''Test that the behaviour of carehome_intensity is correct in the case
+    where discharges are considered.'''
+    _, cases = small_cases
+    _, covariates = small_covariates
+    discharges = cases[::-1]
+    intensity = likelihood.carehome_intensity(
+        covariates=covariates,
+        cases=cases,
+        fit_params=SMALL_FIT_PARAMS,
+        dist_params=SIMPLE_DIST_PARAMS,
+        discharges=discharges
+    )
+    assert_almost_equal(
+        intensity,
+        [[1, 2, 2], [2.077, 5.937, 3.217], [3.332, 11.240, 3.810]],
         decimal=3
     )
 
