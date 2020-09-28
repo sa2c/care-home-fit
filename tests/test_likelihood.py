@@ -22,6 +22,9 @@ SIMPLE_DIST_PARAMS = {
     'discharge_excitation_scale': 2
 }
 
+SMALL_CASES_FILE = 'tests/fixtures/small.csv'
+SMALL_COVARIATES_FILE = 'tests/fixtures/small_covariates.csv'
+
 
 @pytest.mark.parametrize(
     "test_element,result_dtype",
@@ -38,7 +41,7 @@ def test_compactify(test_element, result_dtype):
 def test_read_and_tidy_data():
     '''Test that a CSV file with care home IDs as a header row
     is read, sorted, and split correctly.'''
-    ids, values = likelihood.read_and_tidy_data('tests/fixtures/small.csv')
+    ids, values = likelihood.read_and_tidy_data(SMALL_CASES_FILE)
     assert_array_equal(ids, [14, 16, 35])
     assert_array_equal(
         values,
@@ -48,13 +51,13 @@ def test_read_and_tidy_data():
 @pytest.fixture
 def small_cases():
     '''Get a small data file that could be cases or discharges.'''
-    return likelihood.read_and_tidy_data('tests/fixtures/small.csv')
+    return likelihood.read_and_tidy_data(SMALL_CASES_FILE)
 
 
 @pytest.fixture
 def small_covariates():
     '''Get a small data file containing covariates.'''
-    return likelihood.read_and_tidy_data('tests/fixtures/small_covariates.csv')
+    return likelihood.read_and_tidy_data(SMALL_COVARIATES_FILE)
 
 
 def test_carehome_intensity_null(small_cases, small_covariates):
@@ -131,3 +134,70 @@ def test_calculate_gamma_parameters(mean, cv, expected_shape, expected_scale):
     shape, scape = likelihood.calculate_gamma_parameters(mean, cv)
     assert_almost_equal([shape, scape], [expected_shape, expected_scale],
                         decimal=3)
+
+
+def test_likelihood():
+    '''Test that the likelihood calculation is correct'''
+
+    cases = np.asarray([[3, 1, 0, 1], [1, 0, 2, 1], [0, 0, 0, 1]])
+    intensity = np.asarray(
+        [[1, 3, 1.5, 6], [4.2, 3.1, 7, 1.4], [2, 5.1, 4.2, 8.9]]
+    )
+
+    assert_almost_equal(likelihood.likelihood(intensity, cases), -38.6061101)
+
+
+def test_calculate_likelihood_from_files_no_discharges():
+    '''Test that likelihood is correctly calculated from input files
+    when discharges are not considered.'''
+    fit_params_no_rh = {**SMALL_FIT_PARAMS, 'r_h': None}
+    result = likelihood.calculate_likelihood_from_files(
+        SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
+        fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
+    )
+    assert_almost_equal(result, -13.9346821)
+
+
+def test_calculate_likelihood_from_files_no_cases():
+    '''Test that likelihood is correctly calculated from input files
+    when cases are not considered.'''
+    fit_params_no_rh = {**SMALL_FIT_PARAMS, 'r_c': 0}
+    result = likelihood.calculate_likelihood_from_files(
+        SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
+        discharges_file=SMALL_CASES_FILE,
+        fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
+    )
+    assert_almost_equal(result, -12.6650361)
+
+
+def test_calculate_likelihood_from_files_no_discharges_or_cases():
+    '''Test that likelihood is correctly calculated from input files
+    when neither cases nor discharges are considered.'''
+    fit_params_no_rh = {**SMALL_FIT_PARAMS, 'r_h': None, 'r_c': 0}
+    result = likelihood.calculate_likelihood_from_files(
+        SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
+        fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
+    )
+    assert_almost_equal(result, -11.5342641)
+
+
+def test_calculate_likelihood_from_files_with_discharges():
+    '''Test that likelihood is correctly calculated from input files
+    when discharges are considered.'''
+    result = likelihood.calculate_likelihood_from_files(
+        SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
+        discharges_file=SMALL_CASES_FILE,
+        fit_params=SMALL_FIT_PARAMS, dist_params=SIMPLE_DIST_PARAMS
+    )
+    assert_almost_equal(result, -15.6314631)
+
+
+def test_calculate_likelihood_from_files_missing_discharges():
+    '''Test that an error is generated when r_h is provided but discharge data
+    are not'''
+
+    with pytest.raises(AssertionError):
+        likelihood.calculate_likelihood_from_files(
+            SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
+            fit_params=SMALL_FIT_PARAMS, dist_params=SIMPLE_DIST_PARAMS
+        )
