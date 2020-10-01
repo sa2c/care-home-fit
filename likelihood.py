@@ -9,6 +9,7 @@ scenario.'''
 
 from numpy import asarray, loadtxt, equal, zeros_like, arange, log, newaxis
 from numpy import sum as npsum
+from scipy.special import gammaln
 from scipy.stats import gamma
 
 
@@ -146,12 +147,16 @@ def calculate_gamma_parameters(mean, cv):
 
 def likelihood(intensity, cases):
     '''
-    Sum the following over all care homes i: data on days t=1, 2, ..., T
-    with cases observed on days t_{i;j}, then use log-likelihood
-        \\sum_j \\ln \\lambda_i (t_{i;j}) - \\sum_{t=1}^T \\lambda_i (t)
+    Sum over care homes i and dates t:
+    ln(\\lambda^k exp(-\\lambda) / (k!))
+      = (k ln \\lambda - \\lambda - ln(k!))
+    where k = cases and \\lambda = intensity
     '''
+    non_zero_cases = (cases > 0)
 
-    return npsum(log(intensity[cases > 0])) - npsum(intensity)
+    # gammaln(n) = ln((n-1)!) for integer n
+    return (npsum(cases[non_zero_cases] * log(intensity[non_zero_cases]))
+            - npsum(intensity + gammaln(cases + 1)))
 
 
 def safely_read_cases_covariates_discharges(
