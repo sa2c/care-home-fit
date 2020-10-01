@@ -263,7 +263,10 @@ def large_test_data():
     discharges = np.zeros((num_days, num_care_homes), dtype=np.int8)
     covariates = np.zeros((num_covariates, num_care_homes), dtype=np.int8)
 
-    rng = np.random.default_rng()
+    # For runs with the same version of numpy, we should get the same
+    # test data each time. Not guaranteed to work between versions
+    # because default_rng can change.
+    rng = np.random.default_rng(seed=0)
     care_home_ids = rng.choice(
         max_carehome_id, size=num_care_homes, replace=False
     )
