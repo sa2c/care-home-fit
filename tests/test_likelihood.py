@@ -144,7 +144,7 @@ def test_likelihood():
         [[1, 3, 1.5, 6], [4.2, 3.1, 7, 1.4], [2, 5.1, 4.2, 8.9]]
     )
 
-    assert_almost_equal(likelihood.likelihood(intensity, cases), -38.6061101)
+    assert_almost_equal(likelihood.likelihood(intensity, cases), -39.1451066)
 
 
 def test_calculate_likelihood_from_files_no_discharges():
@@ -155,7 +155,7 @@ def test_calculate_likelihood_from_files_no_discharges():
         SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
         fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
     )
-    assert_almost_equal(result, -13.9346821)
+    assert_almost_equal(result, -187.4430877)
 
 
 def test_calculate_likelihood_from_files_no_cases():
@@ -167,7 +167,7 @@ def test_calculate_likelihood_from_files_no_cases():
         discharges_file=SMALL_CASES_FILE,
         fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
     )
-    assert_almost_equal(result, -12.6650361)
+    assert_almost_equal(result, -189.0456506)
 
 
 def test_calculate_likelihood_from_files_no_discharges_or_cases():
@@ -178,7 +178,7 @@ def test_calculate_likelihood_from_files_no_discharges_or_cases():
         SMALL_CASES_FILE, SMALL_COVARIATES_FILE,
         fit_params=fit_params_no_rh, dist_params=SIMPLE_DIST_PARAMS
     )
-    assert_almost_equal(result, -11.5342641)
+    assert_almost_equal(result, -196.4662787)
 
 
 def test_calculate_likelihood_from_files_with_discharges():
@@ -189,7 +189,7 @@ def test_calculate_likelihood_from_files_with_discharges():
         discharges_file=SMALL_CASES_FILE,
         fit_params=SMALL_FIT_PARAMS, dist_params=SIMPLE_DIST_PARAMS
     )
-    assert_almost_equal(result, -15.6314631)
+    assert_almost_equal(result, -182.7610770)
 
 
 def test_calculate_likelihood_from_files_missing_discharges():
@@ -205,10 +205,10 @@ def test_calculate_likelihood_from_files_missing_discharges():
 
 @pytest.mark.parametrize(
     'r_c, r_h, expect',
-    [(0, 0, -11.5342641),
-     (0.5, 1.5, -15.6314631),
-     (0.5, 0, -13.9346821),
-     (0, 1.5, -12.6650361)]
+    [(0, 0, 196.4662787),
+     (0.5, 1.5, 182.7610770),
+     (0.5, 0, 187.4430877),
+     (0, 1.5, 189.0456506)]
 )
 def test_fittable_likelihood(r_c, r_h, expect):
     '''Test that the closure to give a version of intensity and likelihood that
