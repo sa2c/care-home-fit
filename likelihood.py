@@ -211,14 +211,14 @@ def get_fittable_likelihood(cases_file, covariates_file, discharges_file=None):
         cases_file, covariates_file, discharges_file
     )
 
-    def fittable_likelihood(fit_params, dist_params):
+    def fittable_likelihood(fit_params, *dist_params):
         '''Calculate the likelihood of the enclosed data for the specified
         set of fit and distribution parameters:
          - fit_params: a 1d-array with elements:
            * 0 is the case excitation coefficient r_c
            * 1 is the discharge excitation coefficient r_h
            * 2: are the baseline intensities
-         - dist_parameters: a dict with elements self_excitation_shape,
+         - dist_parameters: a tuple of the four elements self_excitation_shape,
            self_excitation_scale, discharge_excitation_shape,
            discharge_excitation_scale parametrising the relevant
            gamma pdfs.'''
@@ -230,12 +230,18 @@ def get_fittable_likelihood(cases_file, covariates_file, discharges_file=None):
             'r_c': r_c,
             'r_h': r_h
         }
+        dist_params_dict = dict(zip(
+            ('self_excitation_shape', 'self_excitation_scale',
+             'discharge_excitation_shape', 'discharge_excitation_scale'),
+            dist_params
+        ))
+
         if (r_c == 0) and (r_h == 0):
             intensity = carehome_intensity_null(
                 covariates=covariates,
                 cases=cases,
                 fit_params=fit_params_dict,
-                dist_params=dist_params
+                dist_params=dist_params_dict
             )
         else:
             intensity = carehome_intensity(
@@ -243,20 +249,20 @@ def get_fittable_likelihood(cases_file, covariates_file, discharges_file=None):
                 cases=cases,
                 discharges=discharges,
                 fit_params=fit_params_dict,
-                dist_params=dist_params
+                dist_params=dist_params_dict
             )
 
-        return likelihood(intensity, cases)
+        return -likelihood(intensity, cases)
 
     return fittable_likelihood
 
 
-def main():
-    '''Perform a quick test of the intensity calculation.'''
+def get_params_from_args():
+    '''Parse command-line arguments to get filenames for cases,
+    covariates, and discharges, and to define any fit and distribution
+    parameters.'''
 
     from argparse import ArgumentParser
-    from pprint import pprint
-    from time import time
 
     parser = ArgumentParser()
     parser.add_argument('--cases_file', required=True)
@@ -294,6 +300,17 @@ def main():
         args.discharge_excitation_mean,
         args.discharge_excitation_cv
     )
+
+    return args, fit_params, dist_params
+
+
+def main():
+    '''Perform a quick test of the intensity calculation.'''
+
+    from pprint import pprint
+    from time import time
+
+    args, fit_params, dist_params = get_params_from_args()
 
     print("Calculating likelihood with fit parameters:")
     pprint(fit_params)
