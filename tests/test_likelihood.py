@@ -25,6 +25,19 @@ SIMPLE_DIST_PARAMS = {
 SMALL_CASES_FILE = 'tests/fixtures/small.csv'
 SMALL_COVARIATES_FILE = 'tests/fixtures/small_covariates.csv'
 
+LARGE_FIT_PARAMS = {
+    'baseline_intensities': np.asarray([0.3, 0.4, 0.6, 0.9]),
+    'r_h': 1.5,
+    'r_c': 0.5
+}
+
+FULL_DIST_PARAMS = {
+    'self_excitation_shape': 2.6,
+    'self_excitation_scale': 2.5,
+    'discharge_excitation_shape': 2.6,
+    'discharge_excitation_scale': 2.5
+}
+
 
 @pytest.mark.parametrize(
     "test_element,result_dtype",
@@ -221,6 +234,112 @@ def test_fittable_likelihood(r_c, r_h, expect):
         [r_c, r_h, *SMALL_FIT_PARAMS['baseline_intensities']]
     )
     assert_almost_equal(
-        fittable_likelihood(fit_params, SIMPLE_DIST_PARAMS),
+        fittable_likelihood(
+            fit_params, *map(
+                SIMPLE_DIST_PARAMS.get,
+                (('self_excitation_shape', 'self_excitation_scale',
+                  'discharge_excitation_shape', 'discharge_excitation_scale'))
+            )
+        ),
         expect
     )
+
+
+@pytest.fixture
+def large_test_data():
+    '''Generate test data of the size expected from SAIL.'''
+    max_categories = 4
+
+    num_care_homes = 1000
+    num_cases = 2000
+    num_case_homes = 330
+    num_discharges = 3000
+    num_discharge_homes = 500
+    num_days = 181
+    num_covariates = 1
+    max_carehome_id = 32767
+
+    cases = np.zeros((num_days, num_care_homes), dtype=np.int8)
+    discharges = np.zeros((num_days, num_care_homes), dtype=np.int8)
+    covariates = np.zeros((num_covariates, num_care_homes), dtype=np.int8)
+
+    rng = np.random.default_rng()
+    care_home_ids = rng.choice(
+        max_carehome_id, size=num_care_homes, replace=False
+    )
+
+    for sample_array, num_instances, num_places in (
+            (cases, num_cases, num_case_homes),
+            (discharges, num_discharges, num_discharge_homes)
+    ):
+        for _ in range(num_instances):
+            sample_array[rng.integers(num_days), rng.integers(num_places)] += 1
+
+    covariates[0] = rng.choice(max_categories, size=num_care_homes)
+
+    return care_home_ids, cases, covariates, discharges
+
+
+def test_intensity_performance_base(large_test_data, benchmark):
+    '''
+    Test the performance of the intensity function for the base case
+    '''
+
+    _, cases, covariates, _ = large_test_data
+
+    benchmark(
+        likelihood.carehome_intensity_null,
+        fit_params={**LARGE_FIT_PARAMS, 'r_h': None, 'r_c': None},
+        covariates=covariates,
+        cases=cases
+    )
+
+
+def test_intensity_performance_self(large_test_data, benchmark):
+    '''
+    Test the performance of the intensity function with self-excitation
+    '''
+
+    _, cases, covariates, _ = large_test_data
+
+    benchmark(
+        likelihood.carehome_intensity,
+        fit_params={**LARGE_FIT_PARAMS, 'r_h': None},
+        covariates=covariates,
+        cases=cases,
+        dist_params=FULL_DIST_PARAMS
+    )
+
+
+def test_intensity_performance_hospitals(large_test_data, benchmark):
+    '''
+    Test the performance of the intensity function with self- and
+    discharge excitations.'''
+
+    _, cases, covariates, discharges = large_test_data
+
+    benchmark(
+        likelihood.carehome_intensity,
+        fit_params=LARGE_FIT_PARAMS,
+        covariates=covariates,
+        cases=cases,
+        discharges=discharges,
+        dist_params=FULL_DIST_PARAMS
+    )
+
+
+def test_likelihood_performance(large_test_data, benchmark):
+    '''
+    Test the performance of the calculation of likelihood from the intensity
+    and case distribution.'''
+
+    _, cases, covariates, discharges = large_test_data
+    intensity = likelihood.carehome_intensity(
+        fit_params=LARGE_FIT_PARAMS,
+        covariates=covariates,
+        cases=cases,
+        discharges=discharges,
+        dist_params=FULL_DIST_PARAMS
+    )
+
+    benchmark(likelihood.likelihood, intensity, cases)
