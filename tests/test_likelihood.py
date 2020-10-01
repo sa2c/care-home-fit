@@ -131,8 +131,8 @@ def test_carehome_intensity_with_discharges(small_cases, small_covariates):
 def test_calculate_gamma_parameters(mean, cv, expected_shape, expected_scale):
     '''Test that calculation of Scipy-style gamma parameters from "descriptive"
     gamma parameters is correct.'''
-    shape, scape = likelihood.calculate_gamma_parameters(mean, cv)
-    assert_almost_equal([shape, scape], [expected_shape, expected_scale],
+    shape, scale = likelihood.calculate_gamma_parameters(mean, cv)
+    assert_almost_equal([shape, scale], [expected_shape, expected_scale],
                         decimal=3)
 
 
