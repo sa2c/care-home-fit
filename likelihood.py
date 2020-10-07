@@ -156,7 +156,7 @@ def likelihood(intensity, cases):
 
     # gammaln(n) = ln((n-1)!) for integer n
     return (npsum(cases[non_zero_cases] * log(intensity[non_zero_cases]))
-            - npsum(intensity + gammaln(cases + 1)))
+            - npsum(intensity) - npsum(gammaln(cases[cases > 1] + 1)))
 
 
 def safely_read_cases_covariates_discharges(
