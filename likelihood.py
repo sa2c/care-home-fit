@@ -262,10 +262,19 @@ def get_fittable_likelihood(cases_file, covariates_file, discharges_file=None):
     return fittable_likelihood
 
 
-def get_params_from_args():
+def get_params_from_args(extra_arguments=None):
     '''Parse command-line arguments to get filenames for cases,
     covariates, and discharges, and to define any fit and distribution
-    parameters.'''
+    parameters.
+
+    Parameters:
+     - extra_arguments: a list of tuples, each one comprising positional
+       and keyword arguments to parser.add_argument
+    Returns:
+     - args, the raw parsed arguments
+     - fit_params, the specified fit parameters (if any)
+     - dist_params, the specified distribution parameters
+       (or the defaults, if none specified)'''
 
     from argparse import ArgumentParser
 
@@ -280,6 +289,10 @@ def get_params_from_args():
 
     for param_name, param_value in DEFAULT_DIST_PARAMS.items():
         parser.add_argument(f'--{param_name}', type=float, default=param_value)
+
+    if extra_arguments:
+        for add_args, add_kwargs in extra_arguments:
+            parser.add_argument(*add_args, **add_kwargs)
 
     args = parser.parse_args()
 
