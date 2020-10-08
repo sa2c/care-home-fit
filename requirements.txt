@@ -1,4 +1,5 @@
 numpy >= 1.17
 scipy
+pymc3
 pytest
 pytest-benchmark
