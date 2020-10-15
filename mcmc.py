@@ -25,22 +25,22 @@ class CareHomeLikelihood(tt.Op):
 
     def __init__(self, cases_file, covariates_file,
                  dist_params=None, discharges_file=None,
-                 with_r_c=True, with_r_h=True):
+                 fixed_r_c=None, fixed_r_h=None):
         """
         Initialise the Op with the data required by the log-likelihood function.
         """
 
-        self.with_r_c = with_r_c
-        self.with_r_h = with_r_h
+        self.fixed_r_c = fixed_r_c
+        self.fixed_r_h = fixed_r_h
         self.dist_params = dist_params
         _, self.cases, self.covariates, self.discharges = (
             likelihood.safely_read_cases_covariates_discharges(
                 cases_file, covariates_file, discharges_file
             )
         )
-        if self.with_r_h and (self.discharges is None):
+        if (self.fixed_r_h != 0) and (self.discharges is None):
             raise ValueError(
-                "with_r_h set to True, but not discharge data found"
+                "fixed_r_h set to True, but not discharge data found"
             )
 
     def __call__(self, v):
@@ -58,25 +58,28 @@ class CareHomeLikelihood(tt.Op):
         Perform the Op; get the log-likelihood of the data given the inputs.
         """
 
-        if self.with_r_c:
+        start_index = 0
+        if self.fixed_r_c is None:
             r_c = inputs[0][0]
+            start_index += 1
         else:
-            r_c = 0
+            r_c = self.fixed_r_c
 
-        if self.with_r_h:
-            r_h = inputs[0][0 + self.with_r_c]
+        if self.fixed_r_h is None:
+            r_h = inputs[0][start_index]
+            start_index += 1
         else:
-            r_h = None
+            r_h = self.fixed_r_h
 
         fit_params = {
             'baseline_intensities': np.asarray(
-                inputs[0][self.with_r_c + self.with_r_h:]
+                inputs[0][start_index:]
             ),
             'r_c': r_c,
             'r_h': r_h
         }
 
-        if (r_c == 0) and (r_h is None):
+        if (r_c == 0) and (r_h == 0):
             intensity = likelihood.carehome_intensity_null(
                 covariates=self.covariates,
                 cases=self.cases,
@@ -99,30 +102,31 @@ class CareHomeLikelihood(tt.Op):
 
 
 def get_model(log_likelihood,
-              with_r_c=True, with_r_h=True, sigmas=None,
+              fixed_r_c=None, fixed_r_h=None, sigmas=None,
               num_baseline_intensities=4):
     """
     Construct a pymc3 Model.
     Parameters:
      - log_likelihood: an instance of CareHomeLikelihood
-     - with_r_c, with_r_h: whether the self- and discharge excitation
-       parameters should be included in the model
+     - fixed_r_c, fixed_r_h: a number or None. If a number, then the value is
+       fixed (and if zero, the calculation may be skipped). If None, then
+       the value is fitted.
      - sigmas: an optional list of values of sigma for the HalfNormal prior
        distributions on the fit parameters; default is all 1.0
      - n_bi: the number of baseline intensities (i.e. care home sizes)
     Returns:
      - A pymc3 Model object.
     """
-    num_params = num_baseline_intensities + with_r_c + with_r_h
+    num_params = num_baseline_intensities + (fixed_r_c != 0) + (fixed_r_h != 0)
     if sigmas is None:
         sigmas = [1.0] * num_params
     params = []
     with pm.Model() as model:
-        if with_r_c:
+        if fixed_r_c is None:
             r_c = pm.HalfNormal('r_c', sigma=sigmas.pop(0))
             params.append(r_c)
 
-        if with_r_h:
+        if fixed_r_h is None:
             r_h = pm.HalfNormal('r_h', sigma=sigmas.pop(0))
             params.append(r_h)
 
@@ -191,11 +195,19 @@ def print_result(summary, likelihood_obj, filename='/dev/null'):
     associated with these fit parameters.
     """
 
-    with_text = {True: 'with', False: 'without'}
+    def get_with_text(fixed_r):
+        if fixed_r == 0:
+            return 'omitted'
+        elif fixed_r is None:
+            return 'fitted'
+        else:
+            return f'fixed at {fixed_r}'
+
     with open(filename, 'w') as file_handle:
         print_to_stdout_and_file(
-            f"Fit {with_text[likelihood_obj.with_r_c]} self-excitation and "
-            f"{with_text[likelihood_obj.with_r_h]} discharge excitation:",
+            f"Fit with self-excitation "
+            f"{get_with_text(likelihood_obj.fixed_r_c)} and "
+            f"discharge excitation {get_with_text(likelihood_obj.fixed_r_h)}:",
             file_handle=file_handle
         )
         print_to_stdout_and_file(summary, file_handle=file_handle)
@@ -218,8 +230,8 @@ def create_and_run_model(
         num_baseline_intensities,
         num_draws=100,
         num_burn=100,
-        with_r_c=True,
-        with_r_h=True,
+        fixed_r_c=None,
+        fixed_r_h=None,
         discharges_filename=None,
         output_prefix=''
 ):
@@ -233,12 +245,12 @@ def create_and_run_model(
 
     likelihood_obj = CareHomeLikelihood(
         cases_filename, covariates_filename, dist_params, discharges_filename,
-        with_r_c=with_r_c, with_r_h=with_r_h
+        fixed_r_c=fixed_r_c, fixed_r_h=fixed_r_h
     )
     model = get_model(
         likelihood_obj,
-        with_r_c=with_r_c,
-        with_r_h=with_r_h,
+        fixed_r_c=fixed_r_c,
+        fixed_r_h=fixed_r_h,
         num_baseline_intensities=num_baseline_intensities
     )
     trace = mcmc_fit(model, num_draws=num_draws, num_burn=num_burn)
@@ -308,9 +320,9 @@ def main():
         num_baseline_intensities = len(fit_params['baseline_intensities'])
 
     case_options = {
-        "base": (False, False),
-        "self": (True, False),
-        "full": (True, True)
+        "base": (0, 0),
+        "self": (fit_params['r_c'], 0),
+        "full": (fit_params['r_c'], fit_params['r_h'])
     }
     get_case = lambda case : (case, *case_options[case])
     if args.case is not None:
@@ -325,7 +337,7 @@ def main():
         args.overwrite
     )
 
-    for output_prefix, with_r_c, with_r_h in cases:
+    for output_prefix, fixed_r_c, fixed_r_h in cases:
         create_and_run_model(
             cases_filename=args.cases_file,
             covariates_filename=args.covariates_file,
@@ -333,8 +345,8 @@ def main():
             num_baseline_intensities=num_baseline_intensities,
             num_draws=args.num_draws,
             num_burn=args.num_burn,
-            with_r_c=with_r_c,
-            with_r_h=with_r_h,
+            fixed_r_c=fixed_r_c,
+            fixed_r_h=fixed_r_h,
             output_prefix=output_directory / output_prefix,
             discharges_filename=args.discharges_file
         )
