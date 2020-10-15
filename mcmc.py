@@ -297,6 +297,9 @@ def main():
     ), (
         ['--overwrite'],
         {'action': 'store_true'}
+    ), (
+        ['--case'],
+        {'default': None}
     )]
     args, fit_params, dist_params = likelihood.get_params_from_args(extra_args)
     if len(fit_params['baseline_intensities']) == 1:
@@ -304,9 +307,18 @@ def main():
     else:
         num_baseline_intensities = len(fit_params['baseline_intensities'])
 
-    cases = [("base", False, False), ("self", True, False)]
-    if args.discharges_file:
-        cases.append(("full", True, True))
+    case_options = {
+        "base": (False, False),
+        "self": (True, False),
+        "full": (True, True)
+    }
+    get_case = lambda case : (case, *case_options[case])
+    if args.case is not None:
+        cases = [get_case(args.case)]
+    else:
+        cases = [get_case('base'), get_case('self')]
+        if args.discharges_file:
+            cases.append(get_case('full'))
 
     output_directory = get_output_directory(
         args.output_directory,
