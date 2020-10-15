@@ -6,6 +6,7 @@
 import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_almost_equal
+from scipy.stats import gamma
 import likelihood
 
 
@@ -37,6 +38,16 @@ FULL_DIST_PARAMS = {
     'discharge_excitation_shape': 2.6,
     'discharge_excitation_scale': 2.5
 }
+
+
+def test_gamma_pdf():
+    x = np.linspace(0, 10, 100)
+    shape = FULL_DIST_PARAMS['self_excitation_shape']
+    scale = FULL_DIST_PARAMS['self_excitation_scale']
+    assert_almost_equal(
+        gamma.pdf(x, a=shape, scale=scale),
+        likelihood.gamma_pdf(x, shape, scale)
+    )
 
 
 @pytest.mark.parametrize(
@@ -292,12 +303,14 @@ def test_intensity_performance_base(large_test_data, benchmark):
 
     _, cases, covariates, _ = large_test_data
 
-    benchmark(
-        likelihood.carehome_intensity_null,
-        fit_params={**LARGE_FIT_PARAMS, 'r_h': None, 'r_c': None},
-        covariates=covariates,
-        cases=cases
-    )
+    kwargs = {
+        'fit_params': {**LARGE_FIT_PARAMS, 'r_h': None, 'r_c': None},
+        'covariates': covariates,
+        'cases': cases
+    }
+    # Ensure that numba can jit the function before timing it
+    likelihood.carehome_intensity_null(**kwargs)
+    benchmark(likelihood.carehome_intensity_null, **kwargs)
 
 
 def test_intensity_performance_self(large_test_data, benchmark):
@@ -307,13 +320,15 @@ def test_intensity_performance_self(large_test_data, benchmark):
 
     _, cases, covariates, _ = large_test_data
 
-    benchmark(
-        likelihood.carehome_intensity,
-        fit_params={**LARGE_FIT_PARAMS, 'r_h': None},
-        covariates=covariates,
-        cases=cases,
-        dist_params=FULL_DIST_PARAMS
-    )
+    kwargs = {
+        'fit_params': {**LARGE_FIT_PARAMS, 'r_h': None},
+        'covariates': covariates,
+        'cases': cases,
+        'dist_params': FULL_DIST_PARAMS
+    }
+    # Ensure that numba can jit the function before timing it
+    likelihood.carehome_intensity(**kwargs)
+    benchmark(likelihood.carehome_intensity, **kwargs)
 
 
 def test_intensity_performance_hospitals(large_test_data, benchmark):
@@ -323,14 +338,16 @@ def test_intensity_performance_hospitals(large_test_data, benchmark):
 
     _, cases, covariates, discharges = large_test_data
 
-    benchmark(
-        likelihood.carehome_intensity,
-        fit_params=LARGE_FIT_PARAMS,
-        covariates=covariates,
-        cases=cases,
-        discharges=discharges,
-        dist_params=FULL_DIST_PARAMS
-    )
+    kwargs = {
+        'fit_params': LARGE_FIT_PARAMS,
+        'covariates': covariates,
+        'cases': cases,
+        'discharges': discharges,
+        'dist_params': FULL_DIST_PARAMS
+    }
+    # Ensure that numba can jit the function before timing it
+    likelihood.carehome_intensity(**kwargs)
+    benchmark(likelihood.carehome_intensity, **kwargs)
 
 
 def test_likelihood_performance(large_test_data, benchmark):

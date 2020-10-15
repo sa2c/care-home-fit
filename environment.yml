@@ -9,5 +9,6 @@ dependencies:
   - scipy
   - matplotlib
   - theano
+  - numba
   - python=3.8
 prefix: /Users/ed/anaconda3_2020/envs/care-home-fit

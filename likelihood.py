@@ -10,7 +10,8 @@ scenario.'''
 from numpy import asarray, loadtxt, equal, zeros_like, arange, log, newaxis
 from numpy import sum as npsum
 from scipy.special import gammaln
-from scipy.stats import gamma
+from math import gamma, exp
+from numba import njit, vectorize, int32, float64
 
 
 DEFAULT_DIST_PARAMS = {
@@ -19,6 +20,16 @@ DEFAULT_DIST_PARAMS = {
     'discharge_excitation_mean': 6.5,
     'discharge_excitation_cv': 0.62
 }
+
+
+@vectorize([float64(int32, float64, float64),
+            float64(float64, float64, float64)])
+def gamma_pdf(x, a, scale):
+    """
+    Simplification of the gamma function as defined in Scipy
+    """
+    # gamma.pdf(x, a) = x**(a-1) * exp(-x) / gamma(a)
+    return (x / scale) ** (a - 1) * exp(-x / scale) / gamma(a) / scale
 
 
 def compactify(array):
@@ -65,6 +76,7 @@ def carehome_intensity_null(covariates, cases, fit_params, **kwargs):
             + fit_params['baseline_intensities'][covariates])
 
 
+@njit
 def single_excitation(triggers, shape, scale):
     '''
     Calculates a single set of excitation terms in the form
@@ -73,20 +85,19 @@ def single_excitation(triggers, shape, scale):
     and triggers is a 2-d array indexed as (t, i)'''
 
     n_dates, _ = triggers.shape
-    date_delta_range = arange(1, n_dates)[:, newaxis]
+    date_delta_range = arange(1, n_dates)
 
     # Generate an array of all values from the distribution to be used
     # given the range of date differences to be considered
     # This avoids recalculating on each loop iteration
-    full_f_c = gamma.pdf(date_delta_range, a=shape, scale=scale)
-    output = zeros_like(triggers, dtype='float64')
+    full_f_c = gamma_pdf(date_delta_range, shape, scale)
+    output = zeros_like(triggers, dtype=float64)
 
-    for term in range(1, n_dates):
-        # On each loop iteration, consider terms arising from one date
-        # This is the reverse of the form of the summation expressed
-        # analytically, but maps more nicely onto the data structures
-        # and how numpy likes to deal with them
-        output[term:] += full_f_c[:n_dates - term] * triggers[term - 1]
+    for cause_date in range(n_dates - 1):
+        for effect_date in range(cause_date + 1, n_dates):
+            output[effect_date] += (
+                full_f_c[effect_date - cause_date - 1] * triggers[cause_date]
+            )
     return output
 
 
