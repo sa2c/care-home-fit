@@ -13,6 +13,11 @@ import matplotlib.pyplot as plt
 
 import likelihood
 
+STEP_METHODS = {
+    'slice': pm.Slice,
+    'metropolis': pm.Metropolis
+}
+
 
 class CareHomeLikelihood(tt.Op):
     """
@@ -146,19 +151,28 @@ def get_model(log_likelihood,
     return model
 
 
-def mcmc_fit(model, num_draws=100, num_burn=100):
+def mcmc_fit(model, num_draws=100, num_burn=100, step='slice'):
     """
     Run the supplied model and return the trace.
     Parameters:
      - model: a pymc3 Model instance
      - num_draws, num_burn: the number of iterations of the Monte Carlo to run
        as thermalisation and as production.
+     - step: the step method to use
     Returns:
      - A pymc3 trace object.
     """
 
+    if step not in STEP_METHODS:
+        raise ValueError(f"Supplied method {step} is not valid.")
+
     with model:
-        trace = pm.sample(num_draws, tune=num_burn, discard_tuned_samples=True)
+        trace = pm.sample(
+            num_draws,
+            tune=num_burn,
+            discard_tuned_samples=True,
+            step=STEP_METHODS[step]()
+        )
 
     return trace
 
@@ -233,7 +247,8 @@ def create_and_run_model(
         fixed_r_c=None,
         fixed_r_h=None,
         discharges_filename=None,
-        output_prefix=''
+        output_prefix='',
+        step='slice'
 ):
     """
     Perform a fit of a given set of cases, covariates, and optionally
@@ -253,7 +268,7 @@ def create_and_run_model(
         fixed_r_h=fixed_r_h,
         num_baseline_intensities=num_baseline_intensities
     )
-    trace = mcmc_fit(model, num_draws=num_draws, num_burn=num_burn)
+    trace = mcmc_fit(model, num_draws=num_draws, num_burn=num_burn, step=step)
     plot_trace(
         trace,
         output_prefix.parent / (output_prefix.name + 'traceplot.pdf')
@@ -299,10 +314,10 @@ def main():
 
     extra_args = [(
         ['--num_draws'],
-        {'default': 100, 'type': int},
+        {'default': 2000, 'type': int},
     ), (
         ['--num_burn'],
-        {'default': 100, 'type': int}
+        {'default': 500, 'type': int}
     ), (
         ['--output_directory'],
         {'required': True}
@@ -312,6 +327,9 @@ def main():
     ), (
         ['--case'],
         {'default': None}
+    ), (
+        ['--step'],
+        {'default': 'slice'}
     )]
     args, fit_params, dist_params = likelihood.get_params_from_args(extra_args)
     if len(fit_params['baseline_intensities']) == 1:
@@ -348,7 +366,8 @@ def main():
             fixed_r_c=fixed_r_c,
             fixed_r_h=fixed_r_h,
             output_prefix=output_directory / output_prefix,
-            discharges_filename=args.discharges_file
+            discharges_filename=args.discharges_file,
+            step=args.step
         )
 
 
