@@ -344,12 +344,18 @@ def test_intensity_performance_base(large_test_data, benchmark):
     benchmark(likelihood.carehome_intensity_null, **kwargs)
 
 
-def test_intensity_performance_self(large_test_data, benchmark):
+@pytest.mark.parametrize("use_cache", [True, False])
+def test_intensity_performance_self(large_test_data, benchmark, use_cache):
     '''
     Test the performance of the intensity function with self-excitation
     '''
 
     _, cases, covariates, _ = large_test_data
+
+    if not use_cache:
+        # Writeable arrays are not cached
+        cases.flags.writeable = True
+        covariates.flags.writeable = True
 
     kwargs = {
         'fit_params': {**LARGE_FIT_PARAMS, 'r_h': None},
@@ -362,12 +368,21 @@ def test_intensity_performance_self(large_test_data, benchmark):
     benchmark(likelihood.carehome_intensity, **kwargs)
 
 
-def test_intensity_performance_hospitals(large_test_data, benchmark):
+@pytest.mark.parametrize("use_cache", [True, False])
+def test_intensity_performance_hospitals(
+        large_test_data, benchmark, use_cache
+):
     '''
     Test the performance of the intensity function with self- and
     discharge excitations.'''
 
     _, cases, covariates, discharges = large_test_data
+
+    if not use_cache:
+        # Writeable arrays are not cached
+        cases.flags.writeable = True
+        covariates.flags.writeable = True
+        discharges.flags.writeable = True
 
     kwargs = {
         'fit_params': LARGE_FIT_PARAMS,
