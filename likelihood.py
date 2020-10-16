@@ -7,6 +7,7 @@ hospital discharges to the carehome, and to calculate the likelihood of that
 scenario.'''
 
 
+from cachetools import LRUCache
 from numpy import asarray, loadtxt, equal, zeros_like, arange, log, newaxis
 from numpy import sum as npsum
 from scipy.special import gammaln
@@ -20,6 +21,9 @@ DEFAULT_DIST_PARAMS = {
     'discharge_excitation_mean': 6.5,
     'discharge_excitation_cv': 0.62
 }
+
+EXCITATION_CACHE_SIZE = 32
+_single_excitation_cache = LRUCache(maxsize=EXCITATION_CACHE_SIZE)
 
 
 @vectorize([float64(int32, float64, float64),
@@ -55,6 +59,12 @@ def read_and_tidy_data(filename):
     sorted_read_data = read_data[:, read_data[0, :].argsort()]
     care_home_ids = compactify(sorted_read_data[0, :])
     values = compactify(sorted_read_data[1:, :])
+
+    # We shouldn't need to change these data
+    # Having them read-only means the object id can be used as a key
+    # into the cache
+    care_home_ids.flags.writeable = False
+    values.flags.writeable = False
     return care_home_ids, values
 
 
@@ -82,7 +92,7 @@ def single_excitation(triggers, shape, scale):
     Calculates a single set of excitation terms in the form
         e_i(t) = \\sum_{s<t} f(t - s) triggers_i(s)
     where f is the gamma pdf with given shape and scale,
-    and triggers is a 2-d array indexed as (t, i)'''
+    and triggers is a 2-d array indexed as (t, i).'''
 
     n_dates, _ = triggers.shape
     date_delta_range = arange(1, n_dates)
@@ -98,7 +108,25 @@ def single_excitation(triggers, shape, scale):
             output[effect_date] += (
                 full_f_c[effect_date - cause_date - 1] * triggers[cause_date]
             )
+
     return output
+
+
+def cached_single_excitation(triggers, shape, scale):
+    '''If triggers is read-only, check if a cached result for the given
+    parameters is in the _single_excitation_cache. If so, return it.
+    Otherwise, calculate, cache, and return. If triggers is writeable, then
+    always calculate.'''
+
+    if triggers.flags.writeable:
+        return single_excitation(triggers, shape, scale)
+
+    if (hash(bytes(triggers)), shape, scale) not in _single_excitation_cache:
+        _single_excitation_cache[
+            (hash(bytes(triggers)), shape, scale)
+        ] = single_excitation(triggers, shape, scale)
+    return _single_excitation_cache[(hash(bytes(triggers)), shape, scale)]
+
 
 
 def carehome_intensity(fit_params, covariates, cases, dist_params,
@@ -132,7 +160,7 @@ def carehome_intensity(fit_params, covariates, cases, dist_params,
         cases=cases,
         fit_params=fit_params
     )
-    output += fit_params['r_c'] * single_excitation(
+    output += fit_params['r_c'] * cached_single_excitation(
         cases,
         dist_params['self_excitation_shape'],
         dist_params['self_excitation_scale']
@@ -140,7 +168,7 @@ def carehome_intensity(fit_params, covariates, cases, dist_params,
 
     if fit_params.get('r_h') is not None:
         assert discharges is not None
-        output += fit_params['r_h'] * single_excitation(
+        output += fit_params['r_h'] * cached_single_excitation(
             discharges,
             dist_params['discharge_excitation_shape'],
             dist_params['discharge_excitation_scale']

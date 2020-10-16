@@ -3,6 +3,7 @@
 '''Tests for the likelihood.py module'''
 
 
+from time import perf_counter_ns
 import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_almost_equal
@@ -97,18 +98,45 @@ def test_carehome_intensity_null(small_cases, small_covariates):
     assert_array_equal(intensity, [[1, 2, 2], [1, 2, 2], [1, 2, 2]])
 
 
-def test_single_excitation(small_cases, small_covariates):
+def test_single_excitation(small_cases):
     '''Test that excitation terms of the form
         e_i(t) = \\sum_{s<t} f(t - s) triggers_i(s)
     are correctly calculated'''
     _, cases = small_cases
-    _, covariates = small_covariates
     excitation = likelihood.single_excitation(cases, 2, 1)
     assert_almost_equal(
         excitation,
         [[0, 0, 0], [1.472, 0.368, 2.207], [2.554, 0.271, 2.728]],
         decimal=3
     )
+
+
+def test_cached_single_excitation(small_cases):
+    '''
+    Test that the caching of the single_excitation function works correctly.
+    '''
+    _, cases = small_cases
+    cases.flags.writeable = False
+    shape = SIMPLE_DIST_PARAMS['self_excitation_shape']
+    scale = SIMPLE_DIST_PARAMS['self_excitation_scale']
+
+    uncached_start = perf_counter_ns()
+    uncached_excitation = likelihood.single_excitation(cases, shape, scale)
+    uncached_end = perf_counter_ns()
+    first_excitation = likelihood.cached_single_excitation(
+        cases, shape, scale
+    )
+    assert_array_equal(uncached_excitation, first_excitation)
+
+    cached_start = perf_counter_ns()
+    cached_excitation = likelihood.cached_single_excitation(
+        cases, shape, scale
+    )
+    cached_end = perf_counter_ns()
+    assert_array_equal(uncached_excitation, cached_excitation)
+
+    # Cached version should be quicker
+    assert (cached_end - cached_start) < (uncached_end - uncached_start)
 
 
 def test_carehome_intensity_no_discharges(small_cases, small_covariates):
@@ -292,6 +320,9 @@ def large_test_data():
             sample_array[rng.integers(num_days), rng.integers(num_places)] += 1
 
     covariates[0] = rng.choice(max_categories, size=num_care_homes)
+
+    for array in care_home_ids, cases, covariates, discharges:
+        array.flags.writeable = False
 
     return care_home_ids, cases, covariates, discharges
 
