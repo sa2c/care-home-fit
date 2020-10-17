@@ -116,7 +116,7 @@ def get_model(log_likelihood,
      - fixed_r_c, fixed_r_h: a number or None. If a number, then the value is
        fixed (and if zero, the calculation may be skipped). If None, then
        the value is fitted.
-     - sigmas: an optional list of values of sigma for the HalfNormal prior
+     - sigmas: an optional list of values of sigma for the Normal prior
        distributions on the fit parameters; default is all 1.0
      - n_bi: the number of baseline intensities (i.e. care home sizes)
     Returns:
@@ -128,16 +128,19 @@ def get_model(log_likelihood,
     params = []
     with pm.Model() as model:
         if fixed_r_c is None:
-            r_c = pm.HalfNormal('r_c', sigma=sigmas.pop(0))
+            sigma = sigmas.pop(0)
+            r_c = pm.Normal('r_c', mu=sigma, sigma=sigma)
             params.append(r_c)
 
         if fixed_r_h is None:
-            r_h = pm.HalfNormal('r_h', sigma=sigmas.pop(0))
+            sigma = sigmas.pop(0)
+            r_h = pm.Normal('r_h', mu=sigma, sigma=sigma)
             params.append(r_h)
 
         bi = []
         for bi_index in range(num_baseline_intensities):
-            bi.append(pm.HalfNormal(f'bi_{bi_index}', sigma=sigmas.pop(0)))
+            sigma=sigmas.pop(0)
+            bi.append(pm.Normal(f'bi_{bi_index}', mu=sigma, sigma=sigma))
         params.extend(bi)
 
         params_tensor = tt.as_tensor_variable(params)
@@ -314,10 +317,10 @@ def main():
 
     extra_args = [(
         ['--num_draws'],
-        {'default': 2000, 'type': int},
+        {'default': 4000, 'type': int},
     ), (
         ['--num_burn'],
-        {'default': 500, 'type': int}
+        {'default': 2000, 'type': int}
     ), (
         ['--output_directory'],
         {'required': True}
@@ -329,7 +332,7 @@ def main():
         {'default': None}
     ), (
         ['--step'],
-        {'default': 'slice'}
+        {'default': 'metropolis'}
     )]
     args, fit_params, dist_params = likelihood.get_params_from_args(extra_args)
     if len(fit_params['baseline_intensities']) == 1:
