@@ -27,3 +27,8 @@ clean_timings :
 	-rm -r .benchmarks
 
 clean_all : clean clean_timings
+
+example_plots : example_intensities.pdf excited_intensities_simple.pdf
+
+example_intensities.pdf excited_intensities_simple.pdf :
+	python plot_example_intensities.py

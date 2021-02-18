@@ -135,4 +135,6 @@ The included `Makefile` provides some convenience tools:
   skipped tests are the unit tests, which are not benchmarked.
 * `make benchmark_record`: run the above timings, and also save the results
   so that they can be compared later using `pytest-benchmark compare`.
-* `make clean_timings`: remove the saved benchmark timings.`
+* `make clean_timings`: remove the saved benchmark timings.
+* `make example_plots`: produce some example plots showing the intensity
+  as a function of time for specific discharge schedules.
