@@ -102,6 +102,10 @@ Optional parameters:
 * `--num_burn`, `--num_draws`, followed by an integer will set the number of
   thermalisation samples and the number of samples drawn from the posterior
   distribution respectively.
+* `--case` allows running a specific case (`base`, `self`, or `full`) rather
+  than all three.
+* `--step` allows selecting what step function (`metropolis` or `slice`) will
+  be used in the Monte Carlo. Default is `metropolis`.
 
 This will display summary results on screen, and also create files in the
 output directory. Filenames start with `base`, `self`, or `full`; `base` and `self` are created in all cases, while `full` is only created if discharge data
